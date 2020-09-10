@@ -3,6 +3,7 @@ import argparse
 from bs4 import BeautifulSoup
 from datetime import datetime
 import json
+import logging
 from mako.template import Template
 import os
 from pathlib import Path
@@ -105,6 +106,8 @@ class Saga:
             self.storage_changed = False
         except FileNotFoundError:
             self.storage = {}
+        except ValueError:
+            self.storage = {}
 
     def store_json(self):
 
@@ -204,7 +207,8 @@ class Saga:
 
         def _parse_coordinates(s):
 
-            matcher = re.compile(".*var points =(\[[^\]]+\]).*", flags = re.MULTILINE | re.DOTALL)
+            matcher = re.compile(
+                ".*var points =(\[[^\]]+\]).*", flags=re.MULTILINE | re.DOTALL)
             matches = matcher.match(s)
             if matches:
                 return json.loads(matches.group(1))
@@ -229,7 +233,7 @@ class Saga:
         details = {
             "descr": "",
             "address": None,
-            "coords" : None,
+            "coords": None,
             "images": [],
             "properties": [],
             "additions": [],
@@ -252,7 +256,7 @@ class Saga:
             )
 
         # geo daten
-        _script = soup.find("script", text = re.compile(".+var points ="))
+        _script = soup.find("script", text=re.compile(".+var points ="))
         if _script and len(_script.contents) == 1:
             details["coords"] = _parse_coordinates(_script.contents[0])
 
@@ -308,11 +312,68 @@ class Saga:
 
         return details
 
+    def apply_filter(self, objects, filter):
+
+        filtered_objects = []
+
+        def _traverse(object, subfilter):
+
+            keep = True
+            for key in subfilter.keys():
+                if key in object:
+                    if type(object[key]) is dict:
+
+                        keep = _traverse(object[key], subfilter[key])
+
+                    elif type(object[key]) is list:
+
+                        for _f in subfilter[key]:
+                            _k = False
+                            for _o in object[key]:
+                                _k |= _traverse(_o, _f)
+                            if not _k:
+                                keep = False
+                                break
+
+                    elif type(object[key]) is str:
+
+                        keep = re.match(subfilter[key], object[key]) is not None
+
+                    elif type(object[key]) in [int, float] and type(subfilter[key]) in [int, float]:
+
+                        keep = float(object[key]) == float(subfilter[key])
+
+                    elif type(object[key]) in [int, float] and type(subfilter[key]) is list:
+
+                        if len(subfilter[key]) == 1:
+                            keep = float(object[key]) == float(subfilter[key][0])
+                        elif len(subfilter[key]) == 2:
+                            keep = float(object[key]) >= float(subfilter[key][0]) and float(object[key]) <= float(subfilter[key][1])
+                        
+
+                    if not keep:
+                        break
+
+            return keep
+
+
+        for obj in objects:
+
+            keep = _traverse(obj, filter)
+            if keep:
+                filtered_objects.append(obj)
+
+        return filtered_objects
+
 
 if __name__ == "__main__":
+
+    # args
     parser = argparse.ArgumentParser(
         description='Überwache Saga Wohnungsangebote')
     parser.add_argument("path", help="Die URL, die zu prüfen ist")
+    parser.add_argument(
+        "--filter", "-f", help="Angabe einer Datei mit Definition von Filtern")
     args = parser.parse_args()
 
     saga = Saga(args.path)
@@ -320,6 +381,21 @@ if __name__ == "__main__":
     new_objects = saga.process_listing(objects)
     saga.store_json()
 
+    # apply filter if given
+    if args.filter:
+
+        try:
+            data = open(args.filter, "r").read()
+            filter = json.loads(data)
+            new_objects = saga.apply_filter(new_objects, filter)
+        except FileNotFoundError:
+            logging.log(logging.ERROR, "Filter file not found")
+            exit(1)
+        except ValueError:
+            logging.log(logging.ERROR, "Filter file not valid")
+            exit(1)
+
+    # output html for email
     if len(new_objects) > 0:
         t = Template(template)
         print(t.render(objects=new_objects))

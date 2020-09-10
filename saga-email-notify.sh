@@ -2,7 +2,7 @@
 DIR="$(dirname "$0")"
 TMP_FILE="$1/saga-suchagent.html"
 
-if [ $# -ne 2 ]
+if [ $# -lt 2 ]
 then
   echo -e "
 Saga Immobilien Suchagent mit E-Mailversand bei neuen Angeboten.\n\
@@ -16,7 +16,14 @@ Example: \n\
   exit 1
 fi
 
-$DIR/saga-suchagent.py "https://www.saga.hamburg/immobiliensuche" > $TMP_FILE
+if [ $# -eq 3 ]
+then
+  $DIR/saga-suchagent.py "https://www.saga.hamburg/immobiliensuche" --filter $3 > $TMP_FILE
+else
+  $DIR/saga-suchagent.py "https://www.saga.hamburg/immobiliensuche" > $TMP_FILE
+fi
+
+
 if [ -s "$TMP_FILE" ]
 then 
    cat $TMP_FILE | recode UTF-8..ISO-8859-2 | mail -a "Content-Type: text/html; charset=ISO-8859-2; format=flowed" -s "Aktuelle Saga Angebote" $2

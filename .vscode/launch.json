@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["https://www.saga.hamburg/immobiliensuche"]
+            "args": ["https://www.saga.hamburg/immobiliensuche", "--filter", "filter_example.json"]
         },
         {
             "name": "Python: Aktuelle Datei",

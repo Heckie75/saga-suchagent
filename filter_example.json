@@ -1,0 +1,21 @@
+{
+	"details": {
+	  "address": {
+		"district": "^((?!Heimfeld|Billstedt).)*$"
+	  },
+	  "properties": [
+		{
+		  "key": "Gesamtmiete",
+          "value": [500, 1550]
+		},
+		{
+		  "key": "Zimmer",
+          "value": [2.4, 4.6]
+        },
+		{
+		  "key": "Wohnfl\u00e4che ca.",
+          "value": [60.0, 125.0]
+        }
+	  ]
+	}
+}
