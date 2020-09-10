@@ -337,7 +337,8 @@ class Saga:
 
                     elif type(object[key]) is str:
 
-                        keep = re.match(subfilter[key], object[key]) is not None
+                        keep = re.match(
+                            subfilter[key], object[key]) is not None
 
                     elif type(object[key]) in [int, float] and type(subfilter[key]) in [int, float]:
 
@@ -346,16 +347,16 @@ class Saga:
                     elif type(object[key]) in [int, float] and type(subfilter[key]) is list:
 
                         if len(subfilter[key]) == 1:
-                            keep = float(object[key]) == float(subfilter[key][0])
+                            keep = float(object[key]) == float(
+                                subfilter[key][0])
                         elif len(subfilter[key]) == 2:
-                            keep = float(object[key]) >= float(subfilter[key][0]) and float(object[key]) <= float(subfilter[key][1])
-                        
+                            keep = float(object[key]) >= float(subfilter[key][0]) and float(
+                                object[key]) <= float(subfilter[key][1])
 
                     if not keep:
                         break
 
             return keep
-
 
         for obj in objects:
 
