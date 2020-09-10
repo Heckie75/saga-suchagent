@@ -8,10 +8,10 @@ then
 Saga Immobilien Suchagent mit E-Mailversand bei neuen Angeboten.\n\
 \n\
 Usage: \n\
-  ./saga-email-notify.sh <tmp folder> <email address>\n\
+  ./saga-email-notify.sh <tmp folder> <email address> [<filter file>] \n\
 \n\
 Example: \n\
-  ./saga-email-notify.sh /tmp your-email@mail.com\n\
+  ./saga-email-notify.sh /tmp your-email@mail.com filter_example.json\n\
 "
   exit 1
 fi

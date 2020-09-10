@@ -33,6 +33,21 @@ addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
     <h3>Adresse</h3>
 	<p>
     ${addresse}
+
+<%
+if len(o["details"]["coords"]):
+  lat = o["details"]["coords"][0]["lat"]
+  lng = o["details"]["coords"][0]["lng"]
+  maps = "https://maps.google.com/?q=%s,%s,15z" % (lat, lng)
+  osm = "http://www.openstreetmap.org/?mlat=%s&mlon=%s&zoom=12" % (lat, lng)
+else:
+   maps = None
+   osm = None
+%>
+
+% if maps:
+    <br><br><a href="${maps}">Google Maps</a>&nbsp;&nbsp;&nbsp;<a href="${osm}">Open Street Map</a>
+% endif
     </p>
 
     <table>
@@ -65,6 +80,7 @@ addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
 
     <hr>
 % endfor
+<small>Zusammengestellt von saga-suchagent, <a href="https://github.com/Heckie75/saga-suchagent">https://github.com/Heckie75/saga-suchagent</a><small>
 </body>
 </html>
 """
@@ -220,8 +236,9 @@ class Saga:
             _convertable_props = ["Netto-Kalt-Miete", "Betriebskosten",
                                   "Heizkosten", "Gesamtmiete", "Zimmer", "Wohnfl\u00e4che ca.", "Etage"]
 
-            def _converter(s): return float(
-                re.match(r"([0-9\.,]+).*", s).group(1).replace(".", "").replace(",", "."))
+            def _converter(s): 
+                s = s.replace(" 1/2", ",5")
+                return float(re.match(r"([0-9\.,]+).*", s).group(1).replace(".", "").replace(",", "."))
 
             if value in [self.YES, self.NO]:
                 return value == self.YES
