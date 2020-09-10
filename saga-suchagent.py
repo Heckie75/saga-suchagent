@@ -3,7 +3,6 @@ import argparse
 from bs4 import BeautifulSoup
 from datetime import datetime
 import json
-import logging
 from mako.template import Template
 import os
 from pathlib import Path
@@ -37,18 +36,17 @@ addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
 
     <table>
     % for p in o["details"]["properties"]:
-<%
-if type(p["value"]) is bool:
-    value = "Ja" if p["value"] else "Nein"
-else:
-    value = p["value"]
-%>
         <tr>
             <td><b>${p["key"]}</b></td>
-            <td>${value}</td>
+            <td>${p["text"]}</td>
         </tr>
     % endfor
     </table>
+
+    % for a in o["details"]["additions"]:
+    <h3>${a["key"]}</h3>
+    <p>${a["text"]}</p>
+    % endfor
 
     % for i in o["details"]["images"]:
         <p>
@@ -61,13 +59,9 @@ else:
     <h3>Lagebeschreibung<h3>
     % for a in o["details"]["area"]:
     <h4>${a["key"]}</h4>
-    <p>${a["value"]}</p>
+    <p>${a["text"]}</p>
     % endfor
 
-    % for a in o["details"]["additions"]:
-    <h3>${a["key"]}</h3>
-    <p>${a["value"]}</p>
-    % endfor
     <hr>
 % endfor
 </body>
@@ -77,12 +71,16 @@ else:
 
 class Saga:
 
+    YES = "Ja"
+    NO = "Nein"
+
     http = None
     match_obj_id = None
     base_url = None
     url = None
     storage = None
     storage_path = None
+    storage_changed = False
 
     def __init__(self, url):
 
@@ -104,15 +102,20 @@ class Saga:
         try:
             data = open(self.storage_path, "r").read()
             self.storage = json.loads(data)
+            self.storage_changed = False
         except FileNotFoundError:
             self.storage = {}
 
     def store_json(self):
 
+        if self.storage_changed == False:
+            return
+
         try:
             f = open(self.storage_path, "w")
             f.write(json.dumps(self.storage, indent=2))
             f.close()
+            self.storage_changed = False
         except FileNotFoundError:
             self.storage = {}
 
@@ -151,30 +154,82 @@ class Saga:
 
     def process_listing(self, objects):
 
+        def _now():
+            return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         new_objects = []
 
         for o in objects:
 
             if o["id"] in self.storage:
 
-                self.storage[o["id"]]["last_seen"] = datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S")
+                self.storage[o["id"]]["last_seen"] = _now()
 
             else:
 
-                details = saga._parse_details(o["href"])
+                details = self.parse_details(o["href"])
                 o["details"] = details
-                o["first_seen"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                o["first_seen"] = _now()
                 o["last_seen"] = o["first_seen"]
                 self.storage[o["id"]] = o
                 new_objects.append(o)
 
+            self.storage_changed = True
+
         return new_objects
 
-    def _parse_details(self, url):
+    def parse_details(self, url):
+
+        def _parse_descr(descr):
+
+            address = {
+                "street": None,
+                "zipcode": None,
+                "city": None,
+                "district": None
+            }
+
+            lines = descr.split("\n")
+            if len(lines) > 1:
+                address["street"] = lines[0]
+                ccq = lines[1].strip().split(" ")
+                if len(ccq) > 2:
+                    address["zipcode"] = ccq[0]
+                    address["city"] = ccq[1]
+
+                if len(ccq) == 3 and ccq[2][0] == "(" and ccq[2][-1] == ")":
+                    address["district"] = ccq[2][1:-1]
+
+            return address
+
+        def _parse_coordinates(s):
+
+            matcher = re.compile(".*var points =(\[[^\]]+\]).*", flags = re.MULTILINE | re.DOTALL)
+            matches = matcher.match(s)
+            if matches:
+                return json.loads(matches.group(1))
+            else:
+                return None
+
+        def _convert_property(key, value):
+
+            _convertable_props = ["Netto-Kalt-Miete", "Betriebskosten",
+                                  "Heizkosten", "Gesamtmiete", "Zimmer", "Wohnfl\u00e4che ca.", "Etage"]
+
+            def _converter(s): return float(
+                re.match(r"([0-9\.,]+).*", s).group(1).replace(".", "").replace(",", "."))
+
+            if value in [self.YES, self.NO]:
+                return value == self.YES
+            elif key in _convertable_props:
+                return _converter(value)
+            else:
+                return value
 
         details = {
             "descr": "",
+            "address": None,
+            "coords" : None,
             "images": [],
             "properties": [],
             "additions": [],
@@ -196,12 +251,16 @@ class Saga:
                 }
             )
 
+        # geo daten
+        _script = soup.find("script", text = re.compile(".+var points ="))
+        if _script and len(_script.contents) == 1:
+            details["coords"] = _parse_coordinates(_script.contents[0])
+
         # Objektbeschreibung
         _objektbeschreibung = soup.find("h2").findNext("p")
         if _objektbeschreibung:
             details["descr"] = _objektbeschreibung.text.strip()
-        else:
-            details["descr"] = ""
+            details["address"] = _parse_descr(details["descr"])
 
         # Fakten
         props = soup.find("dl", attrs={"class": "dl-props"})
@@ -213,13 +272,17 @@ class Saga:
 
             elif prop.name == "dd":
 
-                value = prop.text
-                if value == "" and prop.has_attr("class"):
-                    value = (prop["class"] == "checked")
+                text = prop.text
+                if text == "" and prop.has_attr("class"):
+                    text = self.YES if (
+                        prop["class"] == "checked") else self.NO
+
+                value = _convert_property(key, text)
 
                 details["properties"].append(
                     {
                         "key": key,
+                        "text": text,
                         "value": value
                     }
                 )
@@ -230,7 +293,7 @@ class Saga:
             details["additions"].append(
                 {
                     "key": h3.text,
-                    "value": h3.findNext("p").text
+                    "text": h3.findNext("p").text
                 }
             )
 
@@ -239,13 +302,11 @@ class Saga:
             details["area"].append(
                 {
                     "key": h6.text,
-                    "value": h6.findNext("p").text
+                    "text": h6.findNext("p").text
                 }
             )
 
         return details
-
-
 
 
 if __name__ == "__main__":
