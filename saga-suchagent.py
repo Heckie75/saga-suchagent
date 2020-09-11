@@ -38,15 +38,17 @@ addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
 if len(o["details"]["coords"]):
   lat = o["details"]["coords"][0]["lat"]
   lng = o["details"]["coords"][0]["lng"]
-  maps = "https://maps.google.com/?q=%s,%s,15z" % (lat, lng)
-  osm = "http://www.openstreetmap.org/?mlat=%s&mlon=%s&zoom=12" % (lat, lng)
+  maps = "geo:%s,%s" % (lat, lng)
+  google_maps = "https://www.google.com/maps/search/%s,%s" % (lat, lng)
+  osm = "http://www.openstreetmap.org/?mlat=%s&mlon=%s&zoom=14" % (lat, lng)
 else:
    maps = None
+   google_maps = None
    osm = None
 %>
 
 % if maps:
-    <br><br><a href="${maps}">Google Maps</a>&nbsp;&nbsp;&nbsp;<a href="${osm}">Open Street Map</a>
+    <br><br><a href="${maps}">Karte</a>&nbsp;&nbsp;&nbsp;<a href="${google_maps}">Google Maps</a>&nbsp;&nbsp;&nbsp;<a href="${osm}">Open Street Map</a>
 % endif
     </p>
 
@@ -99,19 +101,20 @@ class Saga:
     storage_path = None
     storage_changed = False
 
-    def __init__(self, url):
+    def __init__(self, settings):
 
         self.http = urllib3.PoolManager()
         self.match_obj_id = re.compile(".+/([0-9\.]+)")
-        self.url = url
 
-        _m_baseurl = re.match("((https|http)://[^/]+)", url)
-        if _m_baseurl:
-            self.base_url = _m_baseurl.group(1)
-        else:
-            self.base_url = ""
+        # apply settings
+        self.url = settings["url"]
+        self.base_url = re.match("((https|http)://[^/]+)", self.url).group(1)
 
-        self.storage_path = "%s%s.saga.json" % (str(Path.home()), os.path.sep)
+        self.storage_path = settings["storage"]
+        if self.storage_path.startswith("~"):
+            self.storage_path = self.storage_path.replace("~", "%s%s" % (str(Path.home()), os.path.sep))
+
+        # load storage
         self.load_storage()
 
     def load_storage(self):
@@ -236,7 +239,7 @@ class Saga:
             _convertable_props = ["Netto-Kalt-Miete", "Betriebskosten",
                                   "Heizkosten", "Gesamtmiete", "Zimmer", "Wohnfl\u00e4che ca.", "Etage"]
 
-            def _converter(s): 
+            def _converter(s):
                 s = s.replace(" 1/2", ",5")
                 return float(re.match(r"([0-9\.,]+).*", s).group(1).replace(".", "").replace(",", "."))
 
@@ -264,13 +267,14 @@ class Saga:
         # image gallery
         _image_gallery = soup.find(
             "div", attrs={"class": "image-gallery-slider-wrapper"})
-        for _item in _image_gallery.find_all("a", attrs={"class": re.compile("rsImg.*")}):
-            details["images"].append(
-                {
-                    "img": self.base_url + _item["href"],
-                    "alt": _item.img["alt"] if _item.img.has_attr("alt") else ""
-                }
-            )
+        if _image_gallery:
+            for _item in _image_gallery.find_all("a", attrs={"class": re.compile("rsImg.*")}):
+                details["images"].append(
+                    {
+                        "img": self.base_url + _item["href"],
+                        "alt": _item.img["alt"] if _item.img.has_attr("alt") else ""
+                    }
+                )
 
         # geo daten
         _script = soup.find("script", text=re.compile(".+var points ="))
@@ -388,33 +392,35 @@ if __name__ == "__main__":
 
     # args
     parser = argparse.ArgumentParser(
-        description='Überwache Saga Wohnungsangebote')
-    parser.add_argument("path", help="Die URL, die zu prüfen ist")
+        description="Überwache Saga Wohnungsangebote")
+    parser.add_argument("settings", help="Angabe der Datei mit Einstellungen")
     parser.add_argument(
-        "--filter", "-f", help="Angabe einer Datei mit Definition von Filtern")
+        "--json", "-j", help="Ausgabe als JSON anstelle von HTML", action='store_true')
     args = parser.parse_args()
 
-    saga = Saga(args.path)
+    # load settings
+    try:
+        data = open(args.settings, "r").read()
+        settings = json.loads(data)
+    except FileNotFoundError:
+        logging.log(logging.ERROR, "Setting file not found")
+        exit(1)
+    except ValueError:
+        logging.log(logging.ERROR, "Setting file not valid")
+        exit(1)
+
+    saga = Saga(settings)
     objects = saga.parse_objects_from_listing()
     new_objects = saga.process_listing(objects)
     saga.store_json()
 
-    # apply filter if given
-    if args.filter:
+    if settings["filter"]:
+        new_objects = saga.apply_filter(new_objects, settings["filter"])
 
-        try:
-            data = open(args.filter, "r").read()
-            filter = json.loads(data)
-            new_objects = saga.apply_filter(new_objects, filter)
-        except FileNotFoundError:
-            logging.log(logging.ERROR, "Filter file not found")
-            exit(1)
-        except ValueError:
-            logging.log(logging.ERROR, "Filter file not valid")
-            exit(1)
-
-    # output html for email
-    if len(new_objects) > 0:
+    if args.json:
+        # Ausgabe als JSON
+        print(json.dumps(new_objects, indent=2))
+    elif len(new_objects) > 0:
+        # Ausgabe als HTML
         t = Template(template)
         print(t.render(objects=new_objects))
-        exit(0)

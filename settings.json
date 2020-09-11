@@ -1,0 +1,34 @@
+{
+	"url" : "https://www.saga.hamburg/immobiliensuche",
+	"storage" : "~/ramdisk/saga.json",
+	"filter": {
+		"details": {
+			"address": {
+				"district": "^((?!Heimfeld|Billstedt|Ei\u00dfendorf).)*$"
+			},
+			"properties": [
+				{
+					"key": "Gesamtmiete",
+					"value": [
+						500,
+						1550
+					]
+				},
+				{
+					"key": "Zimmer",
+					"value": [
+						2.4,
+						4.6
+					]
+				},
+				{
+					"key": "Wohnfl\u00e4che ca.",
+					"value": [
+						59.0,
+						125.0
+					]
+				}
+			]
+		}
+	}
+}
