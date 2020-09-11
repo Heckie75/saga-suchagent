@@ -87,6 +87,17 @@ else:
 </html>
 """
 
+csv = """\\
+id\tTitel\tZimmer\tFlaeche\tGesamtmiete\tStrasse\tPLZ\tStadtteil\tOrt\tURL\terstellt\tzuletzt gesehen\\
+% for o in objects:
+<%
+zimmer =  list(filter(lambda p: p["key"] == "Zimmer", o["details"]["properties"]))[0]["value"]
+flaeche = list(filter(lambda p: p["key"] == "Wohnfl\u00e4che ca.", o["details"]["properties"]))[0]["value"]
+miete = list(filter(lambda p: p["key"] == "Gesamtmiete", o["details"]["properties"]))[0]["value"]
+%>
+${o["id"]}\t${o["title"]}\t${zimmer}\t${flaeche}\t${miete}\t${o["details"]["address"]["street"]}\t${o["details"]["address"]["zipcode"]}\t${o["details"]["address"]["district"]}\t${o["details"]["address"]["city"]}\t${o["href"]}\t${o["first_seen"]}\t${o["last_seen"]}\\
+% endfor
+"""
 
 class Saga:
 
@@ -100,6 +111,7 @@ class Saga:
     storage = None
     storage_path = None
     storage_changed = False
+    filter = None
 
     def __init__(self, settings):
 
@@ -112,7 +124,9 @@ class Saga:
 
         self.storage_path = settings["storage"]
         if self.storage_path.startswith("~"):
-            self.storage_path = self.storage_path.replace("~", "%s%s" % (str(Path.home()), os.path.sep))
+            self.storage_path = self.storage_path.replace("~", str(Path.home()))
+
+        self.filter = settings["filter"]
 
         # load storage
         self.load_storage()
@@ -174,7 +188,7 @@ class Saga:
 
         return objects
 
-    def process_listing(self, objects):
+    def process_objects(self, objects):
 
         def _now():
             return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -333,7 +347,10 @@ class Saga:
 
         return details
 
-    def apply_filter(self, objects, filter):
+    def apply_filter(self, objects, filter = filter):
+
+        if filter is None:
+            return objects
 
         filtered_objects = []
 
@@ -396,6 +413,18 @@ if __name__ == "__main__":
     parser.add_argument("settings", help="Angabe der Datei mit Einstellungen")
     parser.add_argument(
         "--json", "-j", help="Ausgabe als JSON anstelle von HTML", action='store_true')
+    parser.add_argument(
+        "--csv", help="Ausgabe als CSV anstelle von HTML", action='store_true')
+    parser.add_argument(
+        "--current", "-c", help="Ausgabe derzeitig gelistete Angebote anstatt nur neue", action='store_true')
+    parser.add_argument(
+        "--unfiltered", "-u", help="Wende Filter nicht an", action='store_true')
+    parser.add_argument(
+        "--all", "-a", help="Verwende alle Angebote des Storage", action='store_true')
+    parser.add_argument(
+        "--empty", "-e", help="Lösche Immobilien im Storage", action='store_true')        
+    parser.add_argument(
+        "--transient", "-t", help="Speichere Immobilien nicht im Storage", action='store_true')
     args = parser.parse_args()
 
     # load settings
@@ -410,17 +439,32 @@ if __name__ == "__main__":
         exit(1)
 
     saga = Saga(settings)
-    objects = saga.parse_objects_from_listing()
-    new_objects = saga.process_listing(objects)
-    saga.store_json()
 
-    if settings["filter"]:
-        new_objects = saga.apply_filter(new_objects, settings["filter"])
+    if args.empty:
+        saga.storage = {}
+
+    objects_from_listing = saga.parse_objects_from_listing()
+    objects_to_report = saga.process_objects(objects_from_listing)
+
+    if not args.transient:
+        saga.store_json()
+
+    if args.current:
+        objects_to_report = objects_from_listing
+    elif args.all:
+        objects_to_report = [ o for o in saga.storage.values() ]
+        
+    if settings["filter"] and not args.unfiltered:
+        objects_to_report = saga.apply_filter(objects_to_report, settings["filter"])
 
     if args.json:
         # Ausgabe als JSON
-        print(json.dumps(new_objects, indent=2))
-    elif len(new_objects) > 0:
+        print(json.dumps(objects_to_report, indent=2))
+    elif args.csv:
+        # Ausgabe als CSV
+        t = Template(csv)
+        print(t.render(objects=objects_to_report))            
+    elif len(objects_to_report) > 0:
         # Ausgabe als HTML
         t = Template(template)
-        print(t.render(objects=new_objects))
+        print(t.render(objects=objects_to_report))
