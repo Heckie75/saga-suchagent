@@ -255,7 +255,8 @@ class Saga:
 
             def _converter(s):
                 s = s.replace(" 1/2", ",5")
-                return float(re.match(r"([0-9\.,]+).*", s).group(1).replace(".", "").replace(",", "."))
+                match = re.match(r"([0-9\.,]+).*", s)
+                return float(match.group(1).replace(".", "").replace(",", ".")) if match else 0
 
             if value in [self.YES, self.NO]:
                 return value == self.YES

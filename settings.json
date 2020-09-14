@@ -4,7 +4,7 @@
 	"filter": {
 		"details": {
 			"address": {
-				"district": "^((?!Heimfeld|Billstedt|Ei\u00dfendorf).)*$"
+				"district": "^((?!Heimfeld|Billstedt|Ei\u00dfendorf|Marmstorf).)*$"
 			},
 			"properties": [
 				{
