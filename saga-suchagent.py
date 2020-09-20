@@ -15,27 +15,26 @@ template = """
 <body>
 <h1>Aktuelle Saga Angebote</h1>
 % for o in objects:
-
     <h2>${o["title"]}</h2>
 
+    % if o["thumbnail"] is not None:
     <a href="${o["href"]}">
         <img src="${o["thumbnail"]}" alt="${o["id"]} - ${o["title"]}">
     </a>
     <br>
+    % endif
     <a href="${o["href"]}">${o["id"]}</a>
 <%
 summary = o["short_descr"].replace("\\n", "<br>\\n")
-addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
 %>
     <p>
     ${summary}
     </p>
-    <h3>Adresse</h3>
-	<p>
-    ${addresse}
 
 <%
-if len(o["details"]["coords"]):
+addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
+
+if len(o["details"]["coords"]) > 0:
   lat = o["details"]["coords"][0]["lat"]
   lng = o["details"]["coords"][0]["lng"]
   maps = "geo:%s,%s" % (lat, lng)
@@ -47,11 +46,16 @@ else:
    osm = None
 %>
 
+    <h3>Adresse</h3>
+	<p>
+    ${addresse}
+
 % if maps:
     <br><br><a href="${maps}">Karte</a>&nbsp;&nbsp;&nbsp;<a href="${google_maps}">Google Maps</a>&nbsp;&nbsp;&nbsp;<a href="${osm}">Open Street Map</a>
 % endif
     </p>
 
+    % if len(o["details"]["properties"]) > 0:
     <table>
     % for p in o["details"]["properties"]:
         <tr>
@@ -60,6 +64,7 @@ else:
         </tr>
     % endfor
     </table>
+    % endif
 
     % for a in o["details"]["additions"]:
     <h3>${a["key"]}</h3>
@@ -74,13 +79,16 @@ else:
         </p>
     % endfor
 
+    % if len(o["details"]["area"]) > 0:
     <h3>Lagebeschreibung<h3>
     % for a in o["details"]["area"]:
     <h4>${a["key"]}</h4>
     <p>${a["text"]}</p>
     % endfor
+    % endif
 
     <hr>
+
 % endfor
 <small>Zusammengestellt von saga-suchagent, <a href="https://github.com/Heckie75/saga-suchagent">https://github.com/Heckie75/saga-suchagent</a><small>
 </body>
@@ -188,12 +196,12 @@ class Saga:
 
         return objects
 
-    def process_objects(self, objects):
+    def process_objects(self, objects, current = False):
 
         def _now():
             return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        new_objects = []
+        current_objects = []
 
         for o in objects:
 
@@ -201,18 +209,20 @@ class Saga:
 
                 self.storage[o["id"]]["last_seen"] = _now()
 
-            else:
+                if current:
+                    current_objects.append(self.storage[o["id"]])
 
+            else:
                 details = self.parse_details(o["href"])
                 o["details"] = details
                 o["first_seen"] = _now()
                 o["last_seen"] = o["first_seen"]
                 self.storage[o["id"]] = o
-                new_objects.append(o)
+                current_objects.append(o)
 
             self.storage_changed = True
 
-        return new_objects
+        return current_objects
 
     def parse_details(self, url):
 
@@ -423,7 +433,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--all", "-a", help="Verwende alle Angebote des Storage", action='store_true')
     parser.add_argument(
-        "--empty", "-e", help="Lösche Immobilien im Storage", action='store_true')        
+        "--empty", "-e", help="Lösche Immobilien im Storage", action='store_true')
     parser.add_argument(
         "--transient", "-t", help="Speichere Immobilien nicht im Storage", action='store_true')
     args = parser.parse_args()
@@ -445,16 +455,14 @@ if __name__ == "__main__":
         saga.storage = {}
 
     objects_from_listing = saga.parse_objects_from_listing()
-    objects_to_report = saga.process_objects(objects_from_listing)
+    objects_to_report = saga.process_objects(objects_from_listing, args.current)
 
     if not args.transient:
         saga.store_json()
 
-    if args.current:
-        objects_to_report = objects_from_listing
-    elif args.all:
+    if args.all:
         objects_to_report = [ o for o in saga.storage.values() ]
-        
+
     if settings["filter"] and not args.unfiltered:
         objects_to_report = saga.apply_filter(objects_to_report, settings["filter"])
 
@@ -464,7 +472,7 @@ if __name__ == "__main__":
     elif args.csv:
         # Ausgabe als CSV
         t = Template(csv)
-        print(t.render(objects=objects_to_report))            
+        print(t.render(objects=objects_to_report))
     elif len(objects_to_report) > 0:
         # Ausgabe als HTML
         t = Template(template)

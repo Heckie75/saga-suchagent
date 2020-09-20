@@ -20,7 +20,7 @@ TMP_FILE="$3/saga-suchagent.html"
 $DIR/saga-suchagent.py $1 > ${TMP_FILE}
 
 if [ -s ${TMP_FILE} ]
-then 
+then
    cat ${TMP_FILE} | recode UTF-8..ISO-8859-2 | mail -a "Content-Type: text/html; charset=ISO-8859-2; format=flowed" -s "Aktuelle Saga Angebote" $2
 fi
 rm -f ${TMP_FILE}
