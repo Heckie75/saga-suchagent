@@ -1,17 +1,17 @@
 {
-	"url" : "https://www.saga.hamburg/immobiliensuche",
-	"storage" : "~/ramdisk/saga.json",
+	"url": "https://www.saga.hamburg/immobiliensuche",
+	"storage": "~/.saga.json",
 	"filter": {
 		"details": {
 			"address": {
-				"district": "^((?!Heimfeld|Billstedt|Ei\u00dfendorf|Marmstorf).)*$"
+				"district": "^((?!Heimfeld|Billstedt|Ei\u00dfendorf|Marmstorf|Jenfeld|Lurup).)*$"
 			},
 			"properties": [
 				{
-					"key": "Gesamtmiete",
+					"key": "Netto-Kalt-Miete",
 					"value": [
 						500,
-						1550
+						1150
 					]
 				},
 				{
@@ -28,6 +28,16 @@
 						125.0
 					]
 				}
+			],
+			"additions": [
+				{
+					"key": "Ausstattung",
+					"text": "^.*Badewanne.*(Balkon|Garten|Terrasse).*$"
+				},
+                {
+                    "key": "Sonstiges",
+                    "text": "^((?!Dringlichkeit).)*$"
+                }
 			]
 		}
 	}
