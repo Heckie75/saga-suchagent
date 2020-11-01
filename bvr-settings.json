@@ -1,0 +1,27 @@
+{
+	"url": "https://bauverein-ruestringen.de/mietwohnungen-in-wilhelmshaven/aktuelle-angebote/",
+	"storage": "~/.bvr-whv.json",
+	"filter": {
+		"details": {
+			"address": {
+				"street": "^((?!Friedrich-Paffrath|Siebethsburger).)*$"
+			},
+			"properties": [
+				{
+					"key": "Wohnfl\u00e4che\u00a0ca.",
+					"value": [
+						50,
+						130
+					]
+				},
+				{
+					"key": "Zimmer",
+					"value": [
+						2.4,
+						4.6
+					]
+				}
+			]
+		}
+	}
+}
