@@ -79,7 +79,7 @@ template = """
     <hr>
 
 % endfor
-<small>Zusammengestellt von bvr-whv-suchagent, <a href="https://github.com/Heckie75/bvr-whv-suchagent">https://github.com/Heckie75/bvr-whv-suchagent</a><small>
+<small>Zusammengestellt von saga-suchagent, <a href="https://github.com/Heckie75/saga-suchagent">https://github.com/Heckie75/saga-suchagent</a><small>
 </body>
 </html>
 """

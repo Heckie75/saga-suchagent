@@ -21,6 +21,6 @@ $DIR/bvr-suchagent.py $1 > ${TMP_FILE}
 
 if [ -s ${TMP_FILE} ]
 then
-   cat ${TMP_FILE} | recode UTF-8..ISO-8859-2 | mail -a "Content-Type: text/html; charset=ISO-8859-2; format=flowed" -s "Aktuelle Bauverein Ruestringen Angebote" $2
+   cat ${TMP_FILE} | recode UTF-8..ISO-8859-2 | mail -a "Content-Type: text/html; charset=ISO-8859-2; format=flowed" -s "Aktuelle Bauverein R=?UTF-8?B?w7w=?=stringen Angebote" $2
 fi
 rm -f ${TMP_FILE}
