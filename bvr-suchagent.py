@@ -314,8 +314,10 @@ class Bvr:
         # Merkmale
         _features = soup.find(
             "div", attrs={"class": "property-features panel panel-default"})
-        for _feature in _features.find_all("li"):
-            details["features"].append(_feature.text.strip())
+
+        if _features:
+            for _feature in _features.find_all("li"):
+                details["features"].append(_feature.text.strip())
 
         return details
 

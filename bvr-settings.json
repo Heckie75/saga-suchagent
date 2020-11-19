@@ -4,7 +4,7 @@
 	"filter": {
 		"details": {
 			"address": {
-				"street": "^((?!Friedrich-Paffrath|Siebethsburger).)*$"
+				"street": "^((?!Friedrich-Paffrath|Bismarck).)*$"
 			},
 			"properties": [
 				{
