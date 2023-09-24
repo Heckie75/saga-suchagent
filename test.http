@@ -1,0 +1,37 @@
+###
+GET https://www.saga.hamburg/ajax/prop-contact/wohnungen/82107.0011.2100 HTTP/2
+Host: www.saga.hamburg
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0
+Accept: */*
+Accept-Language: de,en-US;q=0.7,en;q=0.3
+Accept-Encoding: gzip, deflate, br
+X-Requested-With: XMLHttpRequest
+DNT: 1
+Connection: keep-alive
+Referer: https://www.saga.hamburg/objekt/wohnungen/82107.0011.2100
+Cookie: cookie-has-decided=1; marketing-cookies-disabled=0
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-origin
+
+###
+POST https://www.saga.hamburg/ajax/prop-contact/wohnungen/82107.0011.2100 HTTP/2
+Host: www.saga.hamburg
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0
+Accept: */*
+Accept-Language: de,en-US;q=0.7,en;q=0.3
+Accept-Encoding: gzip, deflate, br
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+X-Requested-With: XMLHttpRequest
+Content-Length: 374
+Origin: https://www.saga.hamburg
+DNT: 1
+Connection: keep-alive
+Referer: https://www.saga.hamburg/objekt/wohnungen/82107.0011.2100
+Cookie: cookie-has-decided=1; marketing-cookies-disabled=0
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-origin
+TE: trailers
+
+property_contact%5Bobject%5D=7087.0016.2000&property_contact%5Btype%5D=wohnungen&property_contact%5Bsalutation%5D=Herr&property_contact%5Bname%5D=Ma&property_contact%5Bsurname%5D=He&property_contact%5Bstreet%5D=Pe-Ma&property_contact%5Bnumber%5D=12&property_contact%5Bzip%5D=22177&property_contact%5Bcity%5D=HH&property_contact%5Btel%5D=012345&property_contact%5Bemail%5D=&property_contact%5Bprivacynote%5D=1&formid=234654713

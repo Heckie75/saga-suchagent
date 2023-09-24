@@ -10,14 +10,23 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["https://www.saga.hamburg/immobiliensuche", "--filter", "filter_example.json"]
+            "args": ["/home/heckie/github-heckie75/saga-suchagent/saga-settings.json"]
         },
         {
-            "name": "Python: Aktuelle Datei",
+            "name": "saga (Windows)",
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": ["X:\\github-heckie75\\saga-suchagent\\saga-settings-win.json"]
+        },
+        {
+            "name": "bvr",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": ["bvr-settings.json"]
         }
     ]
 }

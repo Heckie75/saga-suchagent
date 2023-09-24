@@ -1,14 +1,15 @@
 #!/usr/bin/python3
+# -*- coding: utf-8 -*-
 import argparse
-from bs4 import BeautifulSoup
-from datetime import datetime
 import json
 import logging
-from mako.template import Template
-import os
-from pathlib import Path
 import re
+from datetime import datetime, timedelta
+from pathlib import Path
+
 import urllib3
+from bs4 import BeautifulSoup
+from mako.template import Template
 
 template = """
 <html>
@@ -34,7 +35,7 @@ summary = o["short_descr"].replace("\\n", "<br>\\n")
 <%
 addresse = o["details"]["descr"].replace("\\n", "<br>\\n")
 
-if len(o["details"]["coords"]) > 0:
+if o["details"]["coords"] and len(o["details"]["coords"]) > 0:
   lat = o["details"]["coords"][0]["lat"]
   lng = o["details"]["coords"][0]["lng"]
   maps = "geo:%s,%s" % (lat, lng)
@@ -55,7 +56,7 @@ else:
 % endif
     </p>
 
-    % if len(o["details"]["properties"]) > 0:
+    % if o["details"]["properties"] and len(o["details"]["properties"]) > 0:
     <table>
     % for p in o["details"]["properties"]:
         <tr>
@@ -79,12 +80,32 @@ else:
         </p>
     % endfor
 
-    % if len(o["details"]["area"]) > 0:
+    % if o["details"]["area"] and len(o["details"]["area"]) > 0:
     <h3>Lagebeschreibung<h3>
     % for a in o["details"]["area"]:
     <h4>${a["key"]}</h4>
     <p>${a["text"]}</p>
     % endfor
+    % endif
+
+    % if "application" in o:
+    <h3>Bewerbung</h3>
+    <table>
+        <tr><td>Anrede</td><td>${o["application"]["contact"]["salutation"]}</td></tr>
+        <tr><td>Vorname</td><td>${o["application"]["contact"]["surname"]}</td></tr>
+        <tr><td>Name</td><td>${o["application"]["contact"]["name"]}</td></tr>
+        <tr><td>Straße</td><td>${o["application"]["contact"]["street"]}</td></tr>
+        <tr><td>Hausnummer</td><td>${o["application"]["contact"]["number"]}</td></tr>
+        <tr><td>PLZ</td><td>${o["application"]["contact"]["zip"]}</td></tr>
+        <tr><td>Stadt</td><td>${o["application"]["contact"]["city"]}</td></tr>
+        <tr><td>Telefon</td><td>${o["application"]["contact"]["tel"]}</td></tr>
+        <tr><td>E-Mail</td><td>${o["application"]["contact"]["email"]}</td></tr>
+    </table>
+    <table>
+        <tr><td>
+            ${o["application"]["response"]}
+        </td></tr>
+    </table>
     % endif
 
     <hr>
@@ -107,6 +128,7 @@ ${o["id"]}\t${o["title"]}\t${zimmer}\t${flaeche}\t${miete}\t${o["details"]["addr
 % endfor
 """
 
+
 class Saga:
 
     YES = "Ja"
@@ -121,6 +143,8 @@ class Saga:
     storage_changed = False
     filter = None
 
+    application = None
+
     def __init__(self, settings):
 
         self.http = urllib3.PoolManager()
@@ -132,7 +156,8 @@ class Saga:
 
         self.storage_path = settings["storage"]
         if self.storage_path.startswith("~"):
-            self.storage_path = self.storage_path.replace("~", str(Path.home()))
+            self.storage_path = self.storage_path.replace(
+                "~", str(Path.home()))
 
         self.filter = settings["filter"]
 
@@ -168,7 +193,11 @@ class Saga:
         objects = []
 
         request = self.http.request("GET", self.url)
-        data = request.data.decode('utf-8')
+        try:
+            data = request.data.decode('utf-8')
+        except:
+            data = request.data.decode('latin-1')
+
         soup = BeautifulSoup(data, 'html.parser')
 
         for div in soup.find_all('div', attrs={"class": re.compile("teaser3 teaser3--listing.*")}):
@@ -196,7 +225,7 @@ class Saga:
 
         return objects
 
-    def process_objects(self, objects, current = False):
+    def process_objects(self, objects, current=False):
 
         def _now():
             return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -207,10 +236,10 @@ class Saga:
 
             if o["id"] in self.storage:
 
-                self.storage[o["id"]]["last_seen"] = _now()
-
-                if current:
+                if current or datetime.strptime(self.storage[o["id"]]["last_seen"], "%Y-%m-%d %H:%M:%S") < datetime.now() - timedelta(days=7):
                     current_objects.append(self.storage[o["id"]])
+
+                self.storage[o["id"]]["last_seen"] = _now()
 
             else:
                 details = self.parse_details(o["href"])
@@ -239,7 +268,7 @@ class Saga:
             if len(lines) > 1:
                 address["street"] = lines[0]
                 ccq = lines[1].strip().split(" ")
-                if len(ccq) > 2:
+                if len(ccq) >= 2:
                     address["zipcode"] = ccq[0]
                     address["city"] = ccq[1]
 
@@ -358,7 +387,7 @@ class Saga:
 
         return details
 
-    def apply_filter(self, objects, filter = filter):
+    def apply_filter(self, objects, filter=filter):
 
         if filter is None:
             return objects
@@ -415,6 +444,53 @@ class Saga:
 
         return filtered_objects
 
+    def send_application(self, objects):
+
+        for o in objects:
+
+            fields = {
+                "property_contact[object]": o["id"],
+                "property_contact[type]": self.application["type"],
+                "property_contact[salutation]": self.application["contact"]["salutation"],
+                "property_contact[name]": self.application["contact"]["name"],
+                "property_contact[surname]": self.application["contact"]["surname"],
+                "property_contact[street]": self.application["contact"]["street"],
+                "property_contact[number]": self.application["contact"]["number"],
+                "property_contact[zip]": self.application["contact"]["zip"],
+                "property_contact[city]": self.application["contact"]["city"],
+                "property_contact[tel]": self.application["contact"]["tel"],
+                "property_contact[email]": self.application["contact"]["email"],
+                "property_contact[privacynote]": "1",
+                "formid": self.application["formid"]
+            }
+
+            headers = {
+                'cookie': "cookie-has-decided=1; marketing-cookies-disabled=0",
+                'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0",
+                'host': "www.saga.hamburg",
+                'accept': "*/*",
+                'accept-language': "de,en-US;q=0.7,en;q=0.3",
+                'accept-encoding': "gzip, deflate, br",
+                'content-type': "application/x-www-form-urlencoded; charset=UTF-8",
+                'x-requested-with': "XMLHttpRequest",
+                'origin': "https://www.saga.hamburg",
+                'dnt': "1",
+                'connection': "keep-alive",
+                'referer': "https://www.saga.hamburg/objekt/wohnungen/%s" % o["id"],
+                'sec-fetch-dest': "empty",
+                'sec-fetch-mode': "cors",
+                'sec-fetch-site': "same-origin",
+                'te': "trailers"
+            }
+
+            response = self.http.request(
+                method="POST", url=self.application["url"] % o["id"], headers=headers, fields=fields)
+
+            o["application"] = {
+                "contact": self.application["contact"],
+                "response": response.data.decode('utf-8')
+            }
+
 
 if __name__ == "__main__":
 
@@ -434,6 +510,8 @@ if __name__ == "__main__":
         "--all", "-a", help="Verwende alle Angebote des Storage", action='store_true')
     parser.add_argument(
         "--empty", "-e", help="Lösche Immobilien im Storage", action='store_true')
+    parser.add_argument(
+        "--formular", "-f", help="Sende Formular für Bewerbung", action='store_true')
     parser.add_argument(
         "--transient", "-t", help="Speichere Immobilien nicht im Storage", action='store_true')
     args = parser.parse_args()
@@ -455,16 +533,21 @@ if __name__ == "__main__":
         saga.storage = {}
 
     objects_from_listing = saga.parse_objects_from_listing()
-    objects_to_report = saga.process_objects(objects_from_listing, args.current)
+    objects_to_report = saga.process_objects(
+        objects_from_listing, args.current)
 
     if not args.transient:
         saga.store_json()
 
     if args.all:
-        objects_to_report = [ o for o in saga.storage.values() ]
+        objects_to_report = [o for o in saga.storage.values()]
 
     if settings["filter"] and not args.unfiltered:
-        objects_to_report = saga.apply_filter(objects_to_report, settings["filter"])
+        objects_to_report = saga.apply_filter(
+            objects_to_report, settings["filter"])
+
+    if args.formular:
+        saga.send_application(objects_to_report)
 
     if args.json:
         # Ausgabe als JSON

@@ -22,5 +22,6 @@ $DIR/bvr-suchagent.py $1 > ${TMP_FILE}
 if [ -s ${TMP_FILE} ]
 then
    cat ${TMP_FILE} | recode UTF-8..ISO-8859-2 | mail -a "Content-Type: text/html; charset=ISO-8859-2; format=flowed" -s "Aktuelle Bauverein R=?UTF-8?B?w7w=?=stringen Angebote" $2
+   /opt/signal-cli/bin/signal-cli send -m "Neue Bauverein Angebote" --note-to-self > /dev/null
 fi
 rm -f ${TMP_FILE}

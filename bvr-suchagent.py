@@ -1,14 +1,16 @@
 #!/usr/bin/python3
 import argparse
-from bs4 import BeautifulSoup
-from datetime import datetime
 import json
 import logging
-from mako.template import Template
 import os
-from pathlib import Path
 import re
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
 import urllib3
+from bs4 import BeautifulSoup
+from mako.template import Template
 
 template = """
 <html>
@@ -37,7 +39,7 @@ template = """
 
     ${o["details"]["descr"]}
 
-    % if len(o["details"]["properties"]) > 0:
+    % if o["details"]["properties"] and len(o["details"]["properties"]) > 0:
     <h3>Objektdaten</h3>
     <table>
     % for p in o["details"]["properties"]:
@@ -49,7 +51,7 @@ template = """
     </table>
     % endif
 
-    % if len(o["details"]["features"]) > 0:
+    % if o["details"]["features"] and len(o["details"]["features"]) > 0:
     <h3>Ausstattung / Merkmale</h3>
     <ul>
     % for a in o["details"]["features"]:
@@ -58,7 +60,7 @@ template = """
     </ul>
     % endif
 
-    % if len(o["details"]["energy"]) > 0:
+    % if o["details"]["energy"] and len(o["details"]["energy"]) > 0:
     <h3>Energieausweis</h3>
     <table>
     % for p in o["details"]["energy"]:
@@ -117,7 +119,7 @@ class Bvr:
     def __init__(self, settings):
 
         self.http = urllib3.PoolManager()
-        self.match_obj_id = re.compile(".+-([0-9]+)/")
+        self.match_obj_id = re.compile("^.*-in-wilhelmshaven-mieten-(\d+-?\w*)/$")
 
         # apply settings
         self.url = settings["url"]
@@ -162,7 +164,10 @@ class Bvr:
         objects = []
 
         request = self.http.request("GET", self.url)
-        data = request.data.decode("utf-8")
+        try:
+            data = request.data.decode('utf-8')
+        except:
+            data = request.data.decode('latin-1')
         soup = BeautifulSoup(data, "html.parser")
 
         for div in soup.find_all("div", attrs={"class": "property"}):
@@ -201,10 +206,10 @@ class Bvr:
 
             if o["id"] in self.storage:
 
-                self.storage[o["id"]]["last_seen"] = _now()
-
-                if current:
+                if current or datetime.strptime(self.storage[o["id"]]["last_seen"], "%Y-%m-%d %H:%M:%S") < datetime.now() - timedelta(days=7):
                     current_objects.append(self.storage[o["id"]])
+
+                self.storage[o["id"]]["last_seen"] = _now()
 
             else:
                 details = self.parse_details(o["href"])
@@ -259,13 +264,13 @@ class Bvr:
 
         def _convert_property(key, value):
 
-            _convertable_props = ["Etage", "Etagen im Haus", "Wohnfl\u00e4che\u00a0ca.", "Zimmer", "Schlafzimmer", "Badezimmer", "Baujahr", "Kaution", "Kaltmiete", "Nebenkosten", "Endenergie­verbrauch"]
+            _convertable_props = ["Etage", "Etagen im Haus", "Wohnfl\u00e4che\u00a0ca.", "Zimmer", "Schlafzimmer",
+                                  "Badezimmer", "Baujahr", "Kaution", "Kaltmiete", "Nebenkosten", "Endenergie­verbrauch"]
 
             def _converter(s):
                 s = s.replace(" 1/2", ",5")
                 match = re.match(r"([0-9\.,]+).*", s)
                 return float(match.group(1).replace(".", "").replace(",", ".")) if match else 0
-
 
             if key in _convertable_props:
                 return _converter(value)
@@ -306,10 +311,12 @@ class Bvr:
                                    "class": "property-map panel panel-default"}).find("div", attrs={"class": "panel-body"}).find_all("p")])
 
         # Objektdaten
-        details["properties"] = _read_table(soup.find("div", attrs={"class": "property-details panel panel-default"}))
+        details["properties"] = _read_table(
+            soup.find("div", attrs={"class": "property-details panel panel-default"}))
 
         # E-Pass
-        details["energy"] = _read_table(soup.find("div", attrs={"class": "property-epass panel panel-default"}))
+        details["energy"] = _read_table(
+            soup.find("div", attrs={"class": "property-epass panel panel-default"}))
 
         # Merkmale
         _features = soup.find(
@@ -412,33 +419,37 @@ if __name__ == "__main__":
         logging.log(logging.ERROR, "Setting file not valid")
         exit(1)
 
-    bvr = Bvr(settings)
+    try:
+        bvr = Bvr(settings)
 
-    if args.empty:
-        bvr.storage = {}
+        if args.empty:
+            bvr.storage = {}
 
-    objects_from_listing = bvr.parse_objects_from_listing()
+        objects_from_listing = bvr.parse_objects_from_listing()
 
-    objects_to_report = bvr.process_objects(objects_from_listing, args.current)
+        objects_to_report = bvr.process_objects(
+            objects_from_listing, args.current)
 
-    if not args.transient:
-        bvr.store_json()
+        if not args.transient:
+            bvr.store_json()
 
-    if args.all:
-        objects_to_report = [o for o in bvr.storage.values()]
+        if args.all:
+            objects_to_report = [o for o in bvr.storage.values()]
 
-    if settings["filter"] and not args.unfiltered:
-        objects_to_report = bvr.apply_filter(
-            objects_to_report, settings["filter"])
+        if settings["filter"] and not args.unfiltered:
+            objects_to_report = bvr.apply_filter(
+                objects_to_report, settings["filter"])
 
-    if args.json:
-        # Ausgabe als JSON
-        print(json.dumps(objects_to_report, indent=2))
-    elif args.csv:
-        # Ausgabe als CSV
-        t = Template(csv)
-        print(t.render(objects=objects_to_report))
-    elif len(objects_to_report) > 0:
-        # Ausgabe als HTML
-        t = Template(template)
-        print(t.render(objects=objects_to_report))
+        if args.json:
+            # Ausgabe als JSON
+            print(json.dumps(objects_to_report, indent=2))
+        elif args.csv:
+            # Ausgabe als CSV
+            t = Template(csv)
+            print(t.render(objects=objects_to_report))
+        elif len(objects_to_report) > 0:
+            # Ausgabe als HTML
+            t = Template(template)
+            print(t.render(objects=objects_to_report))
+    except Exception as ex:
+        print(str(ex), file=sys.stderr)
